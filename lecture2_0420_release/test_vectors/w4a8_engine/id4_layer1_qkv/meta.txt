@@ -1,0 +1,11 @@
+id=4
+name=layer1_qkv
+m=384
+n=128
+w_base=1024
+s_base=448
+shift=14
+act_words=32
+y_words=384
+tiles=48
+mac_cycles=3072

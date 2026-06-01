@@ -1,0 +1,11 @@
+id=1
+name=layer0_proj
+m=128
+n=128
+w_base=384
+s_base=192
+shift=14
+act_words=32
+y_words=128
+tiles=16
+mac_cycles=1024

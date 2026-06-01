@@ -1,0 +1,10 @@
+id name M N w_base s_base
+0 layer0_qkv 384 128 0 0
+1 layer0_proj 128 128 384 192
+2 layer0_ffn_up 256 128 512 256
+3 layer0_ffn_down 128 256 768 384
+4 layer1_qkv 384 128 1024 448
+5 layer1_proj 128 128 1408 640
+6 layer1_ffn_up 256 128 1536 704
+7 layer1_ffn_down 128 256 1792 832
+8 lm_head 64 128 2048 896

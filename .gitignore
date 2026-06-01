@@ -1,0 +1,89 @@
+# OS and editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# Local scratch files
+/tmp.md
+/tmp/
+/temp/
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Generated model/export outputs
+/out/
+/out_L/
+/out_small/
+
+# LaTeX generated files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.glo
+*.gls
+*.ist
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+*.acn
+
+# Vivado generated state and implementation products
+.Xil/
+**/.Xil/
+*.jou
+*.str
+*.backup.jou
+*.backup.log
+*.dcp
+*.bit
+*.ltx
+*.rpx
+*.rpt
+*.wdb
+*.pb
+*.xsa
+*.xclbin
+*.hwdef
+
+lecture2_0420_release/trans/trans.cache/
+lecture2_0420_release/trans/trans.gen/
+lecture2_0420_release/trans/trans.hw/
+lecture2_0420_release/trans/trans.ip_user_files/
+lecture2_0420_release/trans/trans.runs/
+lecture2_0420_release/trans/trans.sim/
+
+# Nuclei Studio / Eclipse generated workspace state
+lecture2_0420_release/.metadata/
+lecture2_0420_release/test1/.metadata/
+lecture2_0420_release/test1/Debug/
+lecture2_0420_release/test1/Release/
+
+# Firmware build products
+*.elf
+*.map
+*.lst
+tools/host_c_test/host_test.exe
+*.o
+*.obj
+*.a
+*.d
+
+# Keep source-controlled hex/vector inputs unless they live in build output dirs.

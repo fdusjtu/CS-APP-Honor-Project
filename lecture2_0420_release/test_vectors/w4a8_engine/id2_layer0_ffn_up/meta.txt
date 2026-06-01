@@ -1,0 +1,11 @@
+id=2
+name=layer0_ffn_up
+m=256
+n=128
+w_base=512
+s_base=256
+shift=14
+act_words=32
+y_words=256
+tiles=32
+mac_cycles=2048

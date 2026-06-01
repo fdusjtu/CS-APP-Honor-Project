@@ -1,0 +1,38 @@
+* text=auto
+
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+*.c text eol=lf
+*.h text eol=lf
+*.S text eol=lf
+*.ld text eol=lf
+*.v text eol=lf
+*.sv text eol=lf
+*.xdc text eol=lf
+*.xci text eol=lf
+*.xpr text eol=lf
+*.tcl text eol=lf
+*.py text eol=lf
+*.ps1 text eol=lf
+*.md text eol=lf
+*.tex text eol=lf
+*.cls text eol=lf
+*.hex text eol=lf
+*.txt text eol=lf
+
+*.pdf binary
+*.ppt binary
+*.pptx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.ico binary
+*.exe binary
+*.bin binary
+*.elf binary
+*.bit binary
+*.dcp binary
+*.pt binary

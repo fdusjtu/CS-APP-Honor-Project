@@ -1,0 +1,11 @@
+id=8
+name=lm_head
+m=64
+n=128
+w_base=2048
+s_base=896
+shift=14
+act_words=32
+y_words=64
+tiles=8
+mac_cycles=512

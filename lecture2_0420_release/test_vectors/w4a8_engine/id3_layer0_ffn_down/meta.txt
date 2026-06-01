@@ -1,0 +1,11 @@
+id=3
+name=layer0_ffn_down
+m=128
+n=256
+w_base=768
+s_base=384
+shift=14
+act_words=64
+y_words=128
+tiles=32
+mac_cycles=2048
