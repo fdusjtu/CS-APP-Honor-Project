@@ -93,4 +93,48 @@ static inline int w4a8_run_layer(int layer_id,
     return 0;
 }
 
+/* ---- Step-4 Transformer Block Engine MMIO ---- */
+#define W4A8_BLOCK_CTRL    W4A8_REG32(0x800)
+#define W4A8_BLOCK_STATUS  W4A8_REG32(0x804)
+#define W4A8_BLOCK_CNT     W4A8_REG32(0x808)
+#define W4A8_BLOCK_STAGE   W4A8_REG32(0x80c)
+#define W4A8_HIN_BASE      0x900   /* 128 INT8 packed, 32 words */
+#define W4A8_BO_BASE       0xA00   /* 128 INT32 */
+
+/* Run the full transformer block on the FPGA. Descriptors 0..3 (qkv/proj/
+   ffn_up/ffn_down) must already be written. Writes hidden_in[128] INT8,
+   starts the block, polls done, reads block_out[128] INT32. Returns the
+   engine cycle count (start->done) in *cycles_out. */
+static inline int w4a8_run_block_fpga(const int8_t *hidden_in,
+                                      int32_t *block_out,
+                                      uint32_t timeout,
+                                      uint32_t *cycles_out)
+{
+    int i;
+
+    for (i = 0; i < 32; i++) {
+        uint32_t word =
+              ((uint32_t)(uint8_t)hidden_in[i * 4 + 0])
+            | ((uint32_t)(uint8_t)hidden_in[i * 4 + 1]) <<  8
+            | ((uint32_t)(uint8_t)hidden_in[i * 4 + 2]) << 16
+            | ((uint32_t)(uint8_t)hidden_in[i * 4 + 3]) << 24;
+        W4A8_REG32(W4A8_HIN_BASE + i * 4) = word;
+    }
+
+    W4A8_BLOCK_CTRL = 1u;
+
+    while ((W4A8_BLOCK_STATUS & 1u) == 0u) {
+        if (timeout == 0u)
+            return -1;
+        timeout--;
+    }
+
+    for (i = 0; i < 128; i++)
+        block_out[i] = (int32_t)W4A8_REG32(W4A8_BO_BASE + i * 4);
+
+    if (cycles_out)
+        *cycles_out = W4A8_BLOCK_CNT;
+    return 0;
+}
+
 #endif
