@@ -1800,9 +1800,10 @@ apb_adv_timer #(
 
 
 
-  // * W4A8 Linear Engine (direct ICB slave, base 0x1004_1000)
-  //   Replaces the old gemv_accel tile accelerator. Same ICB pinout.
-w4a8_linear_engine u_w4a8_engine (
+  // * W4A8 Transformer Block Engine (direct ICB slave, base 0x1004_1000)
+  //   Superset of w4a8_linear_engine: legacy per-layer Linear MMIO plus the
+  //   full-block BLOCK_* interface. Same ICB pinout (drop-in).
+w4a8_block_engine u_w4a8_engine (
     .clk           (clk),
     .rst_n         (rst_n),
     .icb_cmd_valid (expl_axi_icb_cmd_valid),

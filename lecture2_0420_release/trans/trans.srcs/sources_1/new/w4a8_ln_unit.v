@@ -37,6 +37,7 @@ module w4a8_ln_unit #(
     output reg         done
 );
     integer k;
+    reg        [7:0]  idx;
 
     // ---- input / output vector storage ----
     reg signed [31:0] x   [0:N-1];
@@ -73,7 +74,6 @@ module w4a8_ln_unit #(
     reg signed [31:0] mean_q;
     reg signed [63:0] sumsq_q;
     reg signed [31:0] var_q;
-    reg        [7:0]  idx;
 
     wire signed [31:0] diff_i = x[idx] - mean_q;
 

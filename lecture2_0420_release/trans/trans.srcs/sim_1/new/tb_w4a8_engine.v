@@ -37,7 +37,7 @@ module tb_w4a8_engine;
     wire [31:0] icb_rsp_rdata;
     wire        icb_rsp_err;
 
-    w4a8_linear_engine dut (
+    w4a8_block_engine dut (
         .clk          (clk),
         .rst_n        (rst_n),
         .icb_cmd_valid(icb_cmd_valid),
