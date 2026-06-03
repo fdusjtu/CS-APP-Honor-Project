@@ -74,12 +74,12 @@ venv/
 *.xclbin
 *.hwdef
 
-fpga/csapp/trans.cache/
-fpga/csapp/trans.gen/
-fpga/csapp/trans.hw/
-fpga/csapp/trans.ip_user_files/
-fpga/csapp/trans.runs/
-fpga/csapp/trans.sim/
+fpga/trans/trans.cache/
+fpga/trans/trans.gen/
+fpga/trans/trans.hw/
+fpga/trans/trans.ip_user_files/
+fpga/trans/trans.runs/
+fpga/trans/trans.sim/
 
 # Nuclei Studio / Eclipse generated workspace state
 fpga/.metadata/

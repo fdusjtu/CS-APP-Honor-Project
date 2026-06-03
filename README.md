@@ -128,7 +128,7 @@ pytest tests/ -q
 
 ### 4. Vivado 综合实现
 
-打开 `fpga/csapp/trans.xpr`，在 Tcl Console 执行：
+打开 `fpga/trans/trans.xpr`，在 Tcl Console 执行：
 
 ```tcl
 reset_run synth_1
