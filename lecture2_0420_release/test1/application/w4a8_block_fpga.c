@@ -1,13 +1,15 @@
 /* Step-4 FPGA Transformer Block demo / benchmark. */
+#define W4A8_BLOCK_CPU_REF 1
 #include <stdint.h>
 #include "w4a8.h"
 #include "w4a8_block_fpga.h"
 #include "w4a8_block_full_vectors.h"   /* w4a8b_hidden_in, w4a8b_block_out_golden */
 
-/* Define W4A8_BLOCK_CPU_REF to also time the software full block for speedup.
- * Requires w4a8_block_full.c + w4a8_ops.c in the build. */
+/* Define W4A8_BLOCK_CPU_REF to also time the true all-CPU full block (4 Linears
+ * via w4a8_cpu_gemv on weights read back from FPGA BRAM) for an honest speedup.
+ * Requires w4a8_block_cpu.c + w4a8_ops.c + w4a8_cpu_ref.c in the build. */
 #ifdef W4A8_BLOCK_CPU_REF
-#include "w4a8_block_full.h"           /* w4a8_run_full_block */
+#include "w4a8_block_cpu.h"            /* w4a8_run_full_block_cpu, verify */
 #endif
 
 #ifndef W4A8_BLOCK_RUN_TIMEOUT
@@ -50,16 +52,30 @@ int w4a8_run_block_fpga_demo(void)
         if (s_block_out[i] != w4a8b_block_out_golden[i])
             mism++;
 
-    printf("  block_out bit-exact PASS (%d / %d mismatches)\r\n",
-           mism, W4A8B_HIDDEN);
+    if (mism == 0)
+        printf("  block_out bit-exact PASS (%d / %d mismatches)\r\n",
+               mism, W4A8B_HIDDEN);
+    else
+        printf("  block_out bit-exact FAIL (%d / %d mismatches)\r\n",
+               mism, W4A8B_HIDDEN);
 
 #ifdef W4A8_BLOCK_CPU_REF
     {
         uint32_t cpu_cycles;
         t0 = blk_read_cycle();
-        w4a8_run_full_block(w4a8b_hidden_in, s_block_out_cpu);
+        w4a8_run_full_block_cpu(w4a8b_hidden_in, s_block_out_cpu);
         t1 = blk_read_cycle();
         cpu_cycles = t1 - t0;
+
+        /* Cross-check the CPU path is bit-exact to the same golden. */
+        {
+            int cpu_mism = 0;
+            for (int j = 0; j < W4A8B_HIDDEN; j++)
+                if (s_block_out_cpu[j] != w4a8b_block_out_golden[j])
+                    cpu_mism++;
+            printf("  CPU block bit-exact vs golden : %s (%d / %d)\r\n",
+                   cpu_mism == 0 ? "PASS" : "FAIL", cpu_mism, W4A8B_HIDDEN);
+        }
 
         printf("  CPU block cycles      = %u\r\n", (unsigned)cpu_cycles);
         printf("  FPGA block cycles     = %u (engine), %u (call)\r\n",

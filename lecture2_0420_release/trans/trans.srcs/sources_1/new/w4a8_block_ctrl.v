@@ -224,7 +224,10 @@ module w4a8_block_ctrl #(
             st<=S_IDLE; busy<=0; done<=0; cnt<=0; ei<=0; pack_word<=0; issued<=0;
             for (kk=0;kk<HIDDEN;kk=kk+1) res1[kk]<=0;
         end else begin
-            done<=0;
+            // block_done is a LEVEL: it is set when the block reaches S_DONE and
+            // held until the next start clears it (mirrors w4a8_core's done_q).
+            // A 1-cycle pulse here was invisible to the firmware's slow MMIO poll
+            // and caused the on-board "block FPGA TIMEOUT status=0" failure.
             if (busy) cnt <= cnt + 1'b1;
 
             // pack byte accumulation (bytes 0..2; byte3 goes straight to act_wdata)
@@ -238,7 +241,7 @@ module w4a8_block_ctrl #(
             end
 
             case (st)
-                S_IDLE: if (start) begin busy<=1; cnt<=0; ei<=0; st<=S_LN1_LOAD; end
+                S_IDLE: if (start) begin busy<=1; done<=0; cnt<=0; ei<=0; st<=S_LN1_LOAD; end
 
                 S_LN1_LOAD: if (ei==HIDDEN-1) begin ei<=0; issued<=0; st<=S_LN1_RUN; end
                             else ei<=ei+1'b1;

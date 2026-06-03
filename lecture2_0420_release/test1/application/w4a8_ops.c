@@ -89,7 +89,9 @@ void w4a8_int_softmax(const int8_t *scores_q8, int L,
     for (int i = 1; i < L; i++)
         if (scores_q8[i] > m) m = scores_q8[i];
 
-    int32_t exp_q[16];   /* L <= 16 (current attn seq_len is 2) */
+    int32_t exp_q[80];   /* Step 4 max is prompt(7)+generation(64) = 71. */
+    if (L > 80)
+        L = 80;
     int32_t sum_exp = 0;
     for (int i = 0; i < L; i++) {
         int32_t y = (int32_t)scores_q8[i] - m;

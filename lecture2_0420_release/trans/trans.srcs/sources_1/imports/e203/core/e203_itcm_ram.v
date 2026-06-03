@@ -51,6 +51,7 @@ module e203_itcm_ram(
       `endif//}
     .DP(`E203_ITCM_RAM_DP),
     .DW(`E203_ITCM_RAM_DW),
+    .INIT_HEX(1),
     .MW(`E203_ITCM_RAM_MW),
     .AW(`E203_ITCM_RAM_AW) 
   ) u_e203_itcm_gnrl_ram(

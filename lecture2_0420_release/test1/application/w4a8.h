@@ -15,6 +15,8 @@
 #define W4A8_W_LOAD_DATA   W4A8_REG32(0x014)
 #define W4A8_S_LOAD_ADDR   W4A8_REG32(0x018)
 #define W4A8_S_LOAD_DATA   W4A8_REG32(0x01c)
+#define W4A8_W_RD_ADDR     W4A8_REG32(0x030)
+#define W4A8_W_RD_DATA     W4A8_REG32(0x034)
 #define W4A8_CNT_TOTAL     W4A8_REG32(0x020)
 #define W4A8_CNT_MAC       W4A8_REG32(0x024)
 #define W4A8_CNT_STALL     W4A8_REG32(0x028)
@@ -91,6 +93,39 @@ static inline int w4a8_run_layer(int layer_id,
 
     w4a8_read_y(y, y_count);
     return 0;
+}
+
+/* Read a resident Linear layer's INT4-packed weights back from FPGA BRAM into
+   a row-major packed buffer (2 signed nibbles per byte, byte b = cols 2b/2b+1),
+   matching exactly what w4a8_cpu_gemv expects. w_base is in bank_addr units
+   (the descriptor w_base). The banked word is "lsn first" so its 4 bytes drop
+   straight into row-major positions cw*4..cw*4+3 with no bit shuffling.
+   Must only be called while no Linear/block run is active (boot time). */
+static inline void w4a8_read_layer_weights(int w_base, int m, int n, uint8_t *dst)
+{
+    int row, cw;
+    int words_per_row = n >> 3;     /* N / 8 nibbles-per-word */
+    int half_n        = n >> 1;     /* bytes per row in dst */
+
+    for (row = 0; row < m; row++) {
+        int row_tile = row >> 4;    /* row / 16 */
+        int bank     = row & 15;    /* row % 16 */
+        uint8_t *drow = dst + (uintptr_t)row * (uintptr_t)half_n;
+
+        for (cw = 0; cw < words_per_row; cw++) {
+            int bank_addr = w_base + row_tile * words_per_row + cw;
+            uint32_t flat = ((uint32_t)bank_addr << 4) | (uint32_t)bank;
+            uint32_t word;
+
+            W4A8_W_RD_ADDR = flat;
+            word = W4A8_W_RD_DATA;
+
+            drow[cw * 4 + 0] = (uint8_t)(word >>  0);
+            drow[cw * 4 + 1] = (uint8_t)(word >>  8);
+            drow[cw * 4 + 2] = (uint8_t)(word >> 16);
+            drow[cw * 4 + 3] = (uint8_t)(word >> 24);
+        }
+    }
 }
 
 /* ---- Step-4 Transformer Block Engine MMIO ---- */

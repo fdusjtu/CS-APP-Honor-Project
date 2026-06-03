@@ -67,6 +67,12 @@ module w4a8_icb (
     input  [8:0]       ybuf_addr,
     input  [31:0]      ybuf_wdata,
 
+    // CPU weight readback (boot-time): drive the shared wmem read port and
+    // return one bank-selected 32-bit word per W_RD_DATA read.
+    input  [16*32-1:0] wmem_rdata_flat,
+    output             wrd_read_en,
+    output [11:0]      wrd_bank_addr,
+
     // ---- Step-4 block-engine interface ----
     output             block_start,
     input              block_busy,
@@ -109,6 +115,8 @@ module w4a8_icb (
     localparam REG_W_LOAD_DATA = 12'h014;
     localparam REG_S_LOAD_ADDR = 12'h018;
     localparam REG_S_LOAD_DATA = 12'h01C;
+    localparam REG_W_RD_ADDR   = 12'h030;   // CPU weight readback: set flat addr
+    localparam REG_W_RD_DATA   = 12'h034;   // CPU weight readback: read+auto-inc
     localparam REG_CNT_TOTAL   = 12'h020;
     localparam REG_CNT_MAC     = 12'h024;
     localparam REG_CNT_STALL   = 12'h028;
@@ -148,6 +156,8 @@ module w4a8_icb (
     reg [9:0]  s_load_addr_q;
     reg        start_pulse_q;
     reg        block_start_q;
+    reg [15:0] wrd_flat_q;     // CPU weight readback flat pointer
+    reg [31:0] wrd_data_q;     // bank-selected word, registered
 
     reg [31:0] desc_table [0:35];
     reg [31:0] act_buf [0:63];
@@ -183,6 +193,12 @@ module w4a8_icb (
     assign hin_word_rdata = hidden_in[hin_word_addr];
     assign block_y_rdata  = y_buf[block_y_addr];
 
+    // CPU weight readback: continuously present the current pointer's bank_addr
+    // to the (idle-arbitrated) wmem read port. The top level only routes this
+    // when no run is active, so this is harmless during normal operation.
+    assign wrd_read_en   = 1'b1;
+    assign wrd_bank_addr = wrd_flat_q[15:4];     // bank_addr = flat >> 4
+
     // weight/scale load ports
     assign wmem_load_we         = cmd_write & (cmd_addr12 == REG_W_LOAD_DATA);
     assign wmem_load_flat_addr  = w_load_addr_q;
@@ -217,6 +233,8 @@ module w4a8_icb (
             REG_LAYER_ID    : rd_data = {28'b0, layer_id_q};
             REG_W_LOAD_ADDR : rd_data = {16'b0, w_load_addr_q};
             REG_S_LOAD_ADDR : rd_data = {22'b0, s_load_addr_q};
+            REG_W_RD_ADDR   : rd_data = {16'b0, wrd_flat_q};
+            REG_W_RD_DATA   : rd_data = wrd_data_q;
             REG_CNT_TOTAL   : rd_data = core_cnt_total;
             REG_CNT_MAC     : rd_data = core_cnt_mac;
             REG_CNT_STALL   : rd_data = core_cnt_stall;
@@ -248,11 +266,18 @@ module w4a8_icb (
             s_load_addr_q <= 10'b0;
             start_pulse_q <= 1'b0;
             block_start_q <= 1'b0;
+            wrd_flat_q    <= 16'b0;
+            wrd_data_q    <= 32'b0;
             for (i = 0; i < 36; i = i + 1)
                 desc_table[i] <= 32'b0;
         end else begin
             start_pulse_q <= 1'b0;
             block_start_q <= 1'b0;
+
+            // CPU weight readback: latch the bank-selected word every cycle.
+            // wmem read latency is 1 cycle and CPU MMIO accesses are tens of
+            // cycles apart, so wrd_data_q is always settled before a read.
+            wrd_data_q <= wmem_rdata_flat[wrd_flat_q[3:0]*32 +: 32];
 
             if (icb_rsp_valid & icb_rsp_ready)
                 rsp_pending <= 1'b0;
@@ -272,6 +297,11 @@ module w4a8_icb (
                 rsp_read_r  <= icb_cmd_read;
                 rsp_addr_r  <= cmd_addr12;
 
+                // Reading W_RD_DATA returns wrd_data_q (already settled) and
+                // advances the pointer so the next read fetches the next word.
+                if (icb_cmd_read && cmd_addr12 == REG_W_RD_DATA)
+                    wrd_flat_q <= wrd_flat_q + 16'd1;
+
                 if (!icb_cmd_read) begin
                     case (cmd_addr12)
                         REG_CTRL : begin
@@ -284,8 +314,9 @@ module w4a8_icb (
                         REG_W_LOAD_DATA : w_load_addr_q <= w_load_addr_q + 16'd1;
                         REG_S_LOAD_ADDR : s_load_addr_q <= icb_cmd_wdata[9:0];
                         REG_S_LOAD_DATA : s_load_addr_q <= s_load_addr_q + 10'd1;
+                        REG_W_RD_ADDR   : wrd_flat_q <= icb_cmd_wdata[15:0];
                         REG_BLOCK_CTRL  : begin
-                            if (icb_cmd_wdata[0] & ~block_busy)
+                            if (icb_cmd_wdata[0] & ~block_busy & ~core_busy)
                                 block_start_q <= 1'b1;
                         end
                         default : begin

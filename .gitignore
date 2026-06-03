@@ -81,6 +81,7 @@ lecture2_0420_release/test1/Release/
 *.map
 *.lst
 tools/host_c_test/host_test.exe
+tools/host_c_test/golden.bin
 *.o
 *.obj
 *.a

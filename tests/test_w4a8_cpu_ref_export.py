@@ -62,6 +62,21 @@ class CpuFormatMatchesEngineGoldenTests(unittest.TestCase):
         for n in cpu_ref.DEFAULT_REP_LAYERS:
             self.assertIn(n, names)
 
+    def test_header_omits_stored_y_ref_arrays(self):
+        vec = eng.build_vectors(eng.TARGET_CONFIG, seed=1, weights=None)
+        by_name = {c["name"]: c for c in vec["cases"]}
+        cases = [by_name["lm_head"]]
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "w4a8_cpu_ref_weights.h"
+            cpu_ref.emit_header(cases, path, common.DEFAULT_SHIFT)
+            text = path.read_text(encoding="ascii")
+
+        self.assertNotIn("_y_ref", text)
+        self.assertNotIn("const int32_t *y_ref", text)
+
 
 if __name__ == "__main__":
     unittest.main()

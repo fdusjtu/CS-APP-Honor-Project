@@ -48,6 +48,10 @@ module w4a8_block_engine (
     wire             wmem_read_en;
     wire [11:0]      wmem_bank_addr;
     wire [16*32-1:0] wmem_rdata_flat;
+    wire             core_wmem_read_en;
+    wire [11:0]      core_wmem_bank_addr;
+    wire             icb_wrd_read_en;
+    wire [11:0]      icb_wrd_bank_addr;
     wire             smem_read_en;
     wire [9:0]       smem_addr;
     wire [31:0]      smem_rdata;
@@ -82,6 +86,14 @@ module w4a8_block_engine (
     wire [15:0]      core_sbase = block_busy ? bc_sbase : cpu_sbase;
     wire [4:0]       core_shift = block_busy ? bc_shift : cpu_shift;
 
+    // ---- wmem read-port arbitration ----------------------------------
+    // The CPU weight-readback path drives the shared wmem read port only when
+    // neither the Linear core nor the block controller is running (boot-time
+    // readback). During any run the core owns the port, identical to before.
+    wire wmem_idle = ~core_busy & ~block_busy;
+    assign wmem_read_en   = wmem_idle ? icb_wrd_read_en   : core_wmem_read_en;
+    assign wmem_bank_addr = wmem_idle ? icb_wrd_bank_addr : core_wmem_bank_addr;
+
     // ---------------------------------------------------------------
     w4a8_icb u_icb (
         .clk(clk), .rst_n(rst_n),
@@ -105,6 +117,10 @@ module w4a8_block_engine (
 
         .act_read_en(act_read_en), .act_addr(act_addr), .act_rdata(act_rdata),
         .ybuf_we(ybuf_we), .ybuf_addr(ybuf_addr), .ybuf_wdata(ybuf_wdata),
+
+        // CPU weight readback (boot-time): drives shared wmem read port when idle
+        .wmem_rdata_flat(wmem_rdata_flat),
+        .wrd_read_en(icb_wrd_read_en), .wrd_bank_addr(icb_wrd_bank_addr),
 
         .block_start(block_start), .block_busy(block_busy), .block_done(block_done),
         .block_cnt(block_cnt), .block_stage(block_stage),
@@ -137,7 +153,7 @@ module w4a8_block_engine (
         .cfg_m(core_m), .cfg_n(core_n), .cfg_w_base(core_wbase),
         .cfg_s_base(core_sbase), .cfg_shift(core_shift),
         .busy(core_busy), .done(core_done),
-        .wmem_read_en(wmem_read_en), .wmem_bank_addr(wmem_bank_addr),
+        .wmem_read_en(core_wmem_read_en), .wmem_bank_addr(core_wmem_bank_addr),
         .wmem_rdata_flat(wmem_rdata_flat),
         .smem_read_en(smem_read_en), .smem_addr(smem_addr), .smem_rdata(smem_rdata),
         .act_read_en(act_read_en), .act_addr(act_addr), .act_rdata(act_rdata),

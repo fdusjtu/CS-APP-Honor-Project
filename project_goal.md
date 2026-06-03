@@ -4,33 +4,33 @@
 
 ## 最终目标
 
-最终目标：在 ALINX AXU3EG FPGA 板上的蜂鸟 E203 RISC-V SoC 中，实现一个能通过 UART 输出可读文本的 tiny Transformer 推理 demo。
+最终目标：在 ALINX AXU3EG FPGA 板上的蜂鸟 E203 RISC-V SoC 中，实现一个面向 LLM 核心算子的 W4A8 量化 Transformer Block 加速器，并在板上给出 bit-exact PASS 与 CPU/FPGA 加速比。
 
 最终展示形态必须满足：
 
 ```text
 E203 CPU 启动
-FPGA W4A8 Linear Engine 初始化
-板上完成 tiny character-level LM 推理
-UART 115200 8N1 输出 prompt + generated text
+FPGA W4A8 Linear/Transformer Block Engine 初始化
+板上完成 Transformer block 输入输出比对
+UART 115200 8N1 输出 PASS / mismatch / cycles / speedup
 ```
 
 最低可接受输出：
 
 ```text
-W4A8 Linear Engine Demo
-TV PASS
+W4A8 Linear Engine
+  CPU vs FPGA PASS
+  speedup call=x...
+  speedup engine=x...
 
-TinyLM generation
-prompt: "ROMEO:\n"
----
-ROMEO:
-<若干可见英文字母/空格/换行组成的文本>
----
-TinyLM generate PASS
+Transformer Block Accelerator
+  block_out bit-exact PASS (0 / 128 mismatches)
+  CPU cycles = ...
+  FPGA cycles = ...
+  block speedup = x...
 ```
 
-文本不要求达到大模型质量，但必须不是乱码、不是全 0、不是全同一个不可见字符。能看出英文字符流即可。
+TinyLM UART 文本生成不再作为硬性结课要求，而作为扩展展示项。这样项目重点从“生成文本质量”转回课程更关心的 LLM 算子加速、硬件 datapath、memory hierarchy、MMIO 协同和可量化性能结果。
 
 ---
 
@@ -39,10 +39,10 @@ TinyLM generate PASS
 项目重新定位为：
 
 ```text
-面向 Tiny Transformer 推理的 W4A8 常驻权重流水化 Linear Engine
+面向 LLM 算子加速的 W4A8 Transformer Block Accelerator
 ```
 
-不再把 FPGA 端定义成简单的 `16x64 GEMV tile MMIO 外设`。新路线中，FPGA 端应承担完整 Linear layer 的执行：
+项目分两级交付。第一级已经完成：不再把 FPGA 端定义成简单的 `16x64 GEMV tile MMIO 外设`，而是由 FPGA 端承担完整 Linear layer 的执行：
 
 - 常驻全部目标模型 Linear 权重和 scale
 - 根据 `layer_id` 选择 qkv / proj / ffn_up / ffn_down / lm_head
@@ -53,17 +53,17 @@ TinyLM generate PASS
 - 输出完整 layer 的 INT32 result
 - 记录性能计数器
 
-CPU 保留 Transformer 非 Linear 部分：
+第二级作为新的结课核心目标：把一个完整 Transformer block 的非 Linear 算子也纳入 FPGA block engine，使板上展示从单个 Linear/GEMV 算子加速升级为端到端 block 算子链加速：
 
-- embedding lookup
-- LayerNorm
-- attention / softmax
-- GELU
+- LayerNorm / RMSNorm 定点实现
+- QKV Linear / Projection / FFN Up / FFN Down
+- attention score
+- softmax LUT
+- value weighted sum
+- GELU LUT
 - residual add
-- activation 动态 INT8 量化
-- activation scale 乘回
-- argmax / token decode
-- UART 输出
+- block output writeback
+- performance counter
 
 ---
 
@@ -163,12 +163,13 @@ FPGA:
 
 ## 当前已知状态（摘要）
 
-截至 2026-05-28，最新详细进展记录见 `tmp.md`。摘要如下：
+截至 2026-06-01，最新详细进展记录见 `tmp.md`。摘要如下：
 
 - Phase 1 INT8 GEMV PoC 已板上验证。
 - 旧 W4A8 tile accelerator 已完成并验证，随后已被新的 `w4a8_linear_engine` 路线替代。
 - 新 W4A8 Linear Engine 已完成 RTL、Python golden、XSIM 9 层 bit-exact 验证和真实 FPGA 9 层 self-test 上板验证。
-- 当前固件已加入 CPU baseline 和 Step 3a minimal block dataflow；Step 3a 正等待重新生成 bitstream 后上板验证。
+- CPU baseline + 加速比已经板上 PASS。
+- Step 3b 完整 Transformer block 软件调度版已经板上 `FULL BLOCK PASS (0 / 128 mismatches)`；结课下一步改为将 block 内非 Linear 算子继续硬件化，形成 `w4a8_block_engine`。
 - 旧 trap loop 根因已查清并修复；当前上板 self-test 已证明 E203 可以正常从 ILM 启动并访问 W4A8 MMIO。
 
 ### 历史已完成：旧 tile accelerator
@@ -298,39 +299,60 @@ resident_wmem capacity = 16 banks x 4096 x 32-bit = 256 KB
 
 ## 系统总览图
 
-### 系统总览（CPU / FPGA 分工 + 离线流水）
+### 系统总览（结课目标：Transformer Block Accelerator）
 
 ```text
- 离线 (PC): train → quantize → banked weight stream + descriptors
-                                   │  当前默认通过 bitstream BRAM init 固化
-                                   │  MMIO W/S_LOAD 接口保留作调试/扩展
-                                   ▼
- ┌───────────────────────── ALINX AXU3EG / E203 SoC ─────────────────────────┐
- │  ┌─────────── E203 CPU (软件) ───────────┐      ┌──── w4a8_linear_engine ───┐│
- │  │ embedding (INT8→f32) + pos_emb        │      │  icb_slave                ││
- │  │ LayerNorm ×3                          │      │   ├ W/S_LOAD (可选调试加载) ││
- │  │ attention: Q·K / softmax / ·V (KV$)   │      │   ├ ACT_BUF  ◄── 写 act    ││
- │  │ GELU / residual / argmax              │      │   ├ LAYER_ID ◄── 选层      ││
- │  │ activation 动态 INT8 量化 + scale 乘回 │      │   └ CTRL.start            ││
- │  │                                       │      │        │                  ││
- │  │   每层 Linear:                        │ ICB  │        ▼                  ││
- │  │   写 act → 写 layer_id → start ───────┼─────►│  core (FSM)               ││
- │  │   poll done → 读 Y_BUF ◄──────────────┼──────┤   16-bank resident_wmem   ││
- │  │                                       │ MMIO │   → 16×(int4×int8) MAC     ││
- │  │   ← y_int32                           │      │   → INT32 acc → rescale    ││
- │  │                                       │      │   resident_smem / y_buf    ││
- │  └───────────────────────────────────────┘      │   perf_cnt(total/mac/     ││
- │             │ printf                             │            stall/tiles)   ││
- │             ▼ PL UART 115200 8N1                 └────────────────────────────┘│
- └─────────────┼──────────────────────────────────────────────────────────────┘
-               ▼  "ROMEO: <generated text>"
+ 离线 (PC): train/checkpoint
+      │
+      ├─ quantize W4A8 Linear weights + INT16 scales
+      ├─ export block constants: LN params / LUT / test vectors / golden output
+      └─ generate BRAM init + firmware headers
+                                      │
+                                      ▼
+ ┌────────────────────────── ALINX AXU3EG / E203 SoC ──────────────────────────┐
+ │                                                                              │
+ │  ┌────────────── E203 CPU (control + benchmark) ──────────────┐             │
+ │  │ boot / UART / mcycle                                       │             │
+ │  │ write hidden_in or test_id                                 │             │
+ │  │ write CTRL.start                                           │             │
+ │  │ poll STATUS.done                                           │             │
+ │  │ read block_out / counters                                  │             │
+ │  │ compare Python/CPU golden                                  │             │
+ │  │ print PASS / mismatch / cycles / speedup                   │             │
+ │  └───────────────────────┬────────────────────────────────────┘             │
+ │                          │ MMIO / ICB                                        │
+ │                          ▼                                                   │
+ │  ┌──────────── W4A8 Transformer Block Accelerator ─────────────┐             │
+ │  │ icb_slave + register file                                   │             │
+ │  │ block_controller_fsm                                        │             │
+ │  │                                                             │             │
+ │  │  ┌────────────── reusable W4A8 Linear Engine ────────────┐  │             │
+ │  │  │ QKV / PROJ / FFN_UP / FFN_DOWN                        │  │             │
+ │  │  │ resident_wmem: INT4 packed weights, 16 banks           │  │             │
+ │  │  │ resident_smem: INT16 per-row scales                    │  │             │
+ │  │  │ INT32 accumulators + rescale + perf counters           │  │             │
+ │  │  └────────────────────────────────────────────────────────┘  │             │
+ │  │                                                             │             │
+ │  │  ┌────────────── Transformer vector units ───────────────┐  │             │
+ │  │  │ LayerNorm / RMSNorm fixed-point                        │  │             │
+ │  │  │ attention score Q*K                                    │  │             │
+ │  │  │ softmax LUT                                            │  │             │
+ │  │  │ value weighted sum                                     │  │             │
+ │  │  │ GELU LUT                                               │  │             │
+ │  │  │ residual add / requantize                              │  │             │
+ │  │  └────────────────────────────────────────────────────────┘  │             │
+ │  │                                                             │             │
+ │  │  on-chip state BRAM / regs: x, ln, qkv, attn, ffn, block_out │             │
+ │  └─────────────────────────────────────────────────────────────┘             │
+ │                                                                              │
+ └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-一句话分工：FPGA 端 `w4a8_linear_engine` 完整执行 9 个 Linear 层（2 个 Transformer block 的 qkv/proj/ffn_up/ffn_down，加最终 lm_head；常驻权重 + 自动遍历 tile + INT4×INT8 MAC + per-row rescale + 性能计数）；CPU 执行所有非 Linear 算子，以及 activation 动态 INT8 量化 / scale 乘回 / UART 输出。
+一句话分工：CPU 只负责控制、benchmark 和 UART；FPGA 端完成一个 Transformer block 内的主要算子链路，包括 LN、QKV、attention、projection、residual、FFN、GELU 和 block output。现有 `w4a8_linear_engine` 作为其中的 Linear 子引擎继续复用。
 
-### Transformer block 算子分工（CPU vs FPGA）
+### Transformer block 算子分工（目标版）
 
-这里的 `qkv`、`proj`、`ffn_up`、`ffn_down`、`lm_head` 都是 Linear 层。它们的共同形式都是：
+这里的 `qkv`、`proj`、`ffn_up`、`ffn_down` 都是 block 内的 Linear 层。它们的共同形式都是：
 
 ```text
 output = W * input
@@ -344,99 +366,133 @@ output = W * input
 | `proj` | 把 attention 输出投影回 hidden 维度 | `128 x 128` |
 | `ffn_up` | FFN 第一层升维 | `256 x 128` |
 | `ffn_down` | FFN 第二层降回 hidden 维度 | `128 x 256` |
-| `lm_head` | 把最终 hidden state 映射到 vocab logits | `64 x 128` |
+| `lm_head` | 完整 generation 的可选扩展，不属于结课 block accelerator 的硬性范围 | `64 x 128` |
 
-下图展示的是一个 Transformer block 内部的执行方式；当前模型有两个 block，因此 `qkv/proj/ffn_up/ffn_down` 会执行两组，最后再执行一次 `lm_head`。
+下图展示的是结课目标中的单个 Transformer block accelerator。输入是一个固定 hidden vector，输出是 `block_out[128]`，用于和 Python/CPU golden 做 bit-exact 对比并计算 speedup。
 
 ```text
-  token_id
-     ▼  embedding (INT8→f32) + pos_emb                          CPU
-     ▼  x (f32, 128)
-     ▼  LayerNorm 1  →  动态量化 x→INT8                          CPU
-  ╔══════════════════════════════════════════╗
-  ║  Linear: qkv      384×128   W4A8 Engine    ║                FPGA
-  ╚══════════════════════════════════════════╝
-     ▼  ×x_scale (反量化) → split Q | K | V                      CPU
-     ▼  KV cache 写入 + causal attention (Q·K / softmax / ·V)    CPU
-     ▼  量化 attn→INT8                                           CPU
-  ╔══════════════════════════════════════════╗
-  ║  Linear: proj     128×128   W4A8 Engine    ║                FPGA
-  ╚══════════════════════════════════════════╝
-     ▼  ×x_scale ; x = x + proj  (residual)                      CPU
-     ▼  LayerNorm 2  →  量化                                     CPU
-  ╔══════════════════════════════════════════╗
-  ║  Linear: ffn_up   256×128   W4A8 Engine    ║                FPGA
-  ╚══════════════════════════════════════════╝
-     ▼  GELU  →  量化                                            CPU
-  ╔══════════════════════════════════════════╗
-  ║  Linear: ffn_down 128×256   W4A8 Engine    ║                FPGA
-  ╚══════════════════════════════════════════╝
-     ▼  ×x_scale ; x = x + ffn  (residual)                       CPU
-     ▼  final LayerNorm  →  量化                                 CPU
-  ╔══════════════════════════════════════════╗
-  ║  Linear: lm_head  64×128    W4A8 Engine    ║                FPGA
-  ╚══════════════════════════════════════════╝
-     ▼  argmax → next_token  →  UART 输出字符                    CPU
+  hidden_in[128]
+       │
+       ▼
+  ┌─────────────────────────────────────────────┐
+  │ LayerNorm 1 + requantize                    │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ W4A8 Linear: QKV 384 x 128                  │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ split Q/K/V -> attention score -> softmax   │
+  │ -> value weighted sum -> requantize         │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ W4A8 Linear: PROJ 128 x 128                 │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ residual add                                │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ LayerNorm 2 + requantize                    │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ W4A8 Linear: FFN_UP 256 x 128               │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ GELU LUT + requantize                       │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ W4A8 Linear: FFN_DOWN 128 x 256             │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+  ┌─────────────────────────────────────────────┐
+  │ residual add                                │
+  └──────────────────┬──────────────────────────┘
+                     ▼
+              block_out[128]
 ```
 
-| 算子 | 每 token 次数 | 位置 |
+| 算子 | block 内次数 | 目标位置 |
 |---|---:|---|
-| embedding lookup + dequant | 1 | CPU |
-| LayerNorm | 5 | CPU |
-| activation 动态量化 / scale 乘回 | 9 | CPU |
-| **Linear (2×qkv / proj / ffn_up / ffn_down + lm_head)** | **9** | **FPGA** |
-| attention (Q·K / softmax / ·V) | 2 | CPU |
-| GELU | 2 | CPU |
-| residual add | 4 | CPU |
-| argmax | 1 | CPU |
+| LayerNorm / requantize | 2 | FPGA |
+| **Linear: qkv / proj / ffn_up / ffn_down** | **4** | **FPGA** |
+| attention score / softmax / value weighted sum | 1 | FPGA |
+| GELU LUT | 1 | FPGA |
+| residual add | 2 | FPGA |
+| CPU control / UART / golden compare | 1 | CPU |
 
 ---
 
 ## 新硬件架构
 
-新顶层替代旧 `gemv_accel`：
+当前已完成的第一级顶层是：
 
 ```text
 w4a8_linear_engine
 ```
 
-模块结构：
+结课目标新增第二级顶层：
 
 ```text
-w4a8_linear_engine
-├── icb_slave
-├── resident_wmem
-├── resident_smem
-├── layer_desc
-├── act_buf
-├── core
-├── y_buf
-└── perf_cnt
+w4a8_block_engine
+├── icb_slave / register file
+├── block_controller_fsm
+├── input_buf / output_buf
+├── vector_norm_unit
+├── attention_unit
+├── softmax_lut_unit
+├── gelu_lut_unit
+├── residual_unit
+├── scratch/state memory
+└── w4a8_linear_engine
+    ├── resident_wmem
+    ├── resident_smem
+    ├── layer_desc
+    ├── act_buf
+    ├── core
+    ├── y_buf
+    └── perf_cnt
 ```
 
 ### 模块职责
 
 | 模块 | 职责 |
 |---|---|
-| `icb_slave` | MMIO 译码、load 端口、寄存器读写 |
-| `resident_wmem` | 常驻 INT4 packed weight，16 bank |
+| `icb_slave / register file` | MMIO 译码、start/done、test_id、counter、input/output 访问 |
+| `block_controller_fsm` | 串联 LN1、QKV、attention、proj、residual、LN2、FFN、GELU、residual |
+| `input_buf / output_buf` | CPU 写入 `hidden_in[128]`，FPGA 写回 `block_out[128]` |
+| `vector_norm_unit` | 定点 LayerNorm / RMSNorm，输出 INT8 activation |
+| `attention_unit` | Q/K/V split、Q*K score、value weighted sum |
+| `softmax_lut_unit` | 使用 INT LUT 近似 softmax，避免浮点 |
+| `gelu_lut_unit` | 使用 INT8 LUT 实现 FFN 激活 |
+| `residual_unit` | INT32/INT8 对齐后的 residual add 与 requantize |
+| `scratch/state memory` | 保存 x、ln、qkv、attn、ffn 中间向量 |
+| `w4a8_linear_engine` | 复用现有 Linear layer accelerator，执行 qkv/proj/ffn_up/ffn_down |
+| `resident_wmem` | 常驻 INT4 packed Linear 权重，16 bank |
 | `resident_smem` | 常驻 INT16 packed per-row scale |
-| `layer_desc` | 9 个 Linear layer descriptor |
-| `act_buf` | 当前 layer 的 INT8 activation，最大 256 元素，即 64 word |
-| `core` | 自动遍历 tile，执行 MAC/rescale/writeback |
-| `y_buf` | 当前 layer INT32 输出，最大 384 word |
-| `perf_cnt` | total/mac/stall/tile 计数器 |
+| `perf_cnt` | block total、linear total/mac/stall/tile、vector unit cycles |
 
 可复用小模块：
 
 - `int4_unpack.v`
 - `row_rescale.v`
+- 现有 `w4a8_core.v`
+- 现有 `w4a8_resident_wmem.v`
+- 现有 `w4a8_resident_smem.v`
 
 旧模块将被替换：
 
 - `mac_array16.v`
 - `w4a8_tile_kernel.v`
 - `gemv_accel.v`
+
+`w4a8_linear_engine` 不是废弃模块，而是 block engine 内部最重要的 Linear 子引擎。
 
 ---
 
@@ -748,9 +804,13 @@ int w4a8_linear(int m, int n,
 int w4a8_run_layer(int layer_id,
                        const uint32_t *x_packed_i8,
                        uint32_t *y);
+
+int w4a8_run_block(const int32_t *hidden_in,
+                   int32_t *block_out,
+                   uint32_t timeout);
 ```
 
-运行流程：
+第一级 Linear Engine 运行流程：
 
 ```text
 boot:
@@ -766,6 +826,23 @@ per Linear:
   poll STATUS.done
   read Y_BUF[0..M-1]
   CPU multiplies y_int32 by activation scale
+```
+
+结课目标 Block Engine 运行流程：
+
+```text
+boot:
+  resident weights/scales/LUT are initialized by bitstream BRAM init
+  CPU writes optional block descriptors and shift constants
+
+per benchmark:
+  CPU writes hidden_in[128] or selects a resident test vector
+  CPU writes BLOCK_CTRL.start
+  FPGA runs the whole Transformer block
+  CPU polls BLOCK_STATUS.done
+  CPU reads block_out[128]
+  CPU reads block counters
+  CPU compares output with golden and prints speedup
 ```
 
 C 端保留一份 descriptor mirror：
@@ -800,36 +877,35 @@ Layer id 分配：
 
 ---
 
-## TinyLM 推理流程
+## Transformer Block Benchmark 流程
 
-每生成一个 token：
+结课主流程不要求生成文本，而是对一个完整 block 做输入输出比对和加速比测试：
 
 ```text
-1. CPU embedding + position embedding
-2. For transformer layer 0:
-   - CPU LayerNorm
-   - CPU quantize ln_out -> INT8
-   - FPGA layer_id=0 layer0_qkv
-   - CPU dequant qkv result using activation scale
-   - CPU attention + KV cache
-   - CPU quantize attention output
-   - FPGA layer_id=1 layer0_proj
-   - CPU residual
-   - CPU LayerNorm
-   - CPU quantize ln_out
-   - FPGA layer_id=2 layer0_ffn_up
-   - CPU GELU
-   - CPU quantize ffn_hidden
-   - FPGA layer_id=3 layer0_ffn_down
-   - CPU residual
-3. For transformer layer 1:
-   - 使用 `layer_id=4..7` 重复同样流程
-4. CPU final LayerNorm
-5. CPU quantize ln_out
-6. FPGA layer_id=8 lm_head
-7. CPU argmax -> next token
-8. UART output generated char
+1. CPU boot
+2. CPU writes hidden_in[128] or test_id to block engine
+3. CPU reads mcycle t0
+4. CPU writes BLOCK_CTRL.start
+5. FPGA block engine:
+   - LayerNorm 1
+   - QKV Linear
+   - attention score / softmax / value weighted sum
+   - Projection Linear
+   - residual add
+   - LayerNorm 2
+   - FFN Up Linear
+   - GELU
+   - FFN Down Linear
+   - residual add
+   - write block_out[128]
+6. CPU polls STATUS.done
+7. CPU reads mcycle t1 and FPGA counters
+8. CPU reads block_out[128]
+9. CPU compares against Python/CPU golden
+10. UART prints PASS / mismatches / CPU cycles / FPGA cycles / speedup
 ```
+
+TinyLM generation 仍可作为扩展流程：在 block engine 之上增加 embedding、KV cache across tokens、lm_head、argmax 和 token loop。但这不是结课硬性目标。
 
 ---
 
@@ -962,31 +1038,20 @@ gemv_accel -> w4a8_linear_engine
 阶段性上板目标：
 
 ```text
-W4A8 Linear Engine Demo
-layer0_qkv PASS cycles=...
-layer0_proj PASS cycles=...
-layer0_ffn_up PASS cycles=...
-layer0_ffn_down PASS cycles=...
-layer1_qkv PASS cycles=...
-layer1_proj PASS cycles=...
-layer1_ffn_up PASS cycles=...
-layer1_ffn_down PASS cycles=...
-lm_head PASS cycles=...
-ALL 9 LAYERS PASS
-
+W4A8 Linear Engine
 CPU BASELINE PASS
+  layer0_proj CPU=... FPGA_call=... FPGA_engine=... speedup call=x... engine=x...
+  layer0_qkv  CPU=... FPGA_call=... FPGA_engine=... speedup call=x... engine=x...
+  lm_head     CPU=... FPGA_call=... FPGA_engine=... speedup call=x... engine=x...
 
-W4A8 Step 3a minimal block (layer0, no LN/GELU/softmax)
-...
-STEP3A BLOCK PASS
+W4A8 Transformer Block Accelerator
+  block_out bit-exact PASS (0 / 128 mismatches)
+  CPU block cycles = ...
+  FPGA block cycles = ...
+  block speedup = x...
 
 TinyLM generation
-prompt: "ROMEO:\n"
----
-ROMEO:
-<generated readable chars>
----
-TinyLM generate PASS
+  optional demo, not required for final acceptance
 ```
 
 ---
@@ -1000,13 +1065,15 @@ TinyLM generate PASS
 | Firmware build | ELF/verilog/hex generated cleanly |
 | Board boot | no unresolved trap loop |
 | MMIO | weight load、descriptor write、start/done/readback 正常 |
-| TinyLM | UART emits visible generated text |
+| Linear accelerator | FPGA output bit-exact vs CPU/Python golden, speedup reported |
+| Transformer block | block output bit-exact PASS, CPU/FPGA cycles and speedup reported |
+| TinyLM | optional UART text demo, not a hard requirement |
 | Report | includes architecture diagram, register map, memory layout, FSM, performance counters |
 
 最终硬性验收：
 
 ```text
-Board UART prints prompt + generated visible text using E203 CPU + FPGA W4A8 Linear Engine.
+Board UART reports Linear PASS, Transformer Block bit-exact PASS, and CPU/FPGA speedup using E203 CPU + FPGA W4A8 block accelerator.
 ```
 
 ---

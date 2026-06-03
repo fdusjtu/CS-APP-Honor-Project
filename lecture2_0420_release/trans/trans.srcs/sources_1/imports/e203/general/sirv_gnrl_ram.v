@@ -29,6 +29,7 @@ module sirv_gnrl_ram
 #(parameter DP = 8192,
   parameter DW = 64,
   parameter FORCE_X2ZERO = 1,
+  parameter INIT_HEX = 0,
   parameter MW = 8,
   parameter AW = 13 
   ) (
@@ -55,6 +56,7 @@ sirv_sim_ram #(
     .DP (DP),
     .AW (AW),
     .MW (MW),
+    .INIT_HEX (INIT_HEX),
     .DW (DW) 
 )u_sirv_sim_ram (
     .clk   (clk),
@@ -73,6 +75,7 @@ sirv_sim_ram #(
     .DP (DP),
     .AW (AW),
     .MW (MW),
+    .INIT_HEX (INIT_HEX),
     .DW (DW) 
 )u_sirv_sim_ram (
     .clk   (clk),

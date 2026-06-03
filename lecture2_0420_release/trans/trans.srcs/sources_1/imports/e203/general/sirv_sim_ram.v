@@ -27,6 +27,7 @@
 module sirv_sim_ram 
 #(parameter DP = 512,
   parameter FORCE_X2ZERO = 0,
+  parameter INIT_HEX = 0,
   parameter DW = 32,
   parameter MW = 4,
   parameter AW = 32 
@@ -52,9 +53,15 @@ module sirv_sim_ram
 
     genvar i;
     integer j;
+    integer k;
 
     initial begin
-        $readmemh("D:/Desktop/cjt_grade3_xia/CS_APP/Project/Honor/lecture2_0420_release/hexdump-2.1.0/test2.hex", mem_r);
+        for (k = 0; k < DP; k = k + 1) begin
+            mem_r[k] = {DW{1'b0}};
+        end
+        if (INIT_HEX) begin
+            $readmemh("D:/Desktop/cjt_grade3_xia/CS_APP/Project/Honor/lecture2_0420_release/hexdump-2.1.0/test2.hex", mem_r);
+        end
     end
 
     always @(posedge clk) begin
