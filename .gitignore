@@ -16,7 +16,7 @@ desktop.ini
 /project_goal.md
 /课件/
 /lecture1/
-/lecture2_0420_release/fig/
+/fpga/fig/
 /.codex/
 /AGENTS.md
 /tmp/
@@ -74,18 +74,18 @@ venv/
 *.xclbin
 *.hwdef
 
-lecture2_0420_release/trans/trans.cache/
-lecture2_0420_release/trans/trans.gen/
-lecture2_0420_release/trans/trans.hw/
-lecture2_0420_release/trans/trans.ip_user_files/
-lecture2_0420_release/trans/trans.runs/
-lecture2_0420_release/trans/trans.sim/
+fpga/vivado/trans.cache/
+fpga/vivado/trans.gen/
+fpga/vivado/trans.hw/
+fpga/vivado/trans.ip_user_files/
+fpga/vivado/trans.runs/
+fpga/vivado/trans.sim/
 
 # Nuclei Studio / Eclipse generated workspace state
-lecture2_0420_release/.metadata/
-lecture2_0420_release/test1/.metadata/
-lecture2_0420_release/test1/Debug/
-lecture2_0420_release/test1/Release/
+fpga/.metadata/
+fpga/firmware/.metadata/
+fpga/firmware/Debug/
+fpga/firmware/Release/
 
 # Firmware build products
 *.elf

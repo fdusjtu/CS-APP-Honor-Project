@@ -164,7 +164,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("lecture2_0420_release/test1/application/w4a8_cpu_ref_weights.h"),
+        default=Path("fpga/firmware/application/w4a8_cpu_ref_weights.h"),
     )
     parser.add_argument("--seed", type=int, default=1, help="must match engine vectors seed")
     parser.add_argument(

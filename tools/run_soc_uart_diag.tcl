@@ -1,7 +1,7 @@
 set script_dir [file dirname [file normalize [info script]]]
 set repo_root [file normalize [file join $script_dir ".."]]
-set proj_path [file join $repo_root "lecture2_0420_release" "trans" "trans.xpr"]
-set tb_path [file join $repo_root "lecture2_0420_release" "trans" "trans.srcs" "sim_1" "new" "tb_soc_uart_diag.v"]
+set proj_path [file join $repo_root "fpga" "trans" "trans.xpr"]
+set tb_path [file join $repo_root "fpga" "trans" "trans.srcs" "sim_1" "new" "tb_soc_uart_diag.v"]
 
 if {[info exists ::env(FULL_SOC)] && $::env(FULL_SOC) == "1"} {
   set full_soc 1

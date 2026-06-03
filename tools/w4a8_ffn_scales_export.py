@@ -41,7 +41,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("lecture2_0420_release/test1/application/w4a8_ffn_scales.h"),
+        default=Path("fpga/firmware/application/w4a8_ffn_scales.h"),
     )
     parser.add_argument("--seed", type=int, default=1, help="must match engine vectors seed")
     args = parser.parse_args()

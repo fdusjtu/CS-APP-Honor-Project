@@ -33,9 +33,9 @@ from w4a8_block_full import (
 )
 
 REPO = Path(__file__).resolve().parent.parent
-BRAM_INIT = REPO / "lecture2_0420_release" / "bram_init"
-RTL_NEW = REPO / "lecture2_0420_release" / "trans" / "trans.srcs" / "sources_1" / "new"
-TV_DIR = REPO / "lecture2_0420_release" / "test_vectors" / "w4a8_block"
+BRAM_INIT = REPO / "fpga" / "bram_init"
+RTL_NEW = REPO / "fpga" / "trans" / "trans.srcs" / "sources_1" / "new"
+TV_DIR = REPO / "fpga" / "test_vectors" / "w4a8_block"
 
 
 def _hex_line(value: int, bits: int) -> str:

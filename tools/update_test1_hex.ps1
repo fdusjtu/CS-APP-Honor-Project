@@ -5,8 +5,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$DebugDir = Join-Path $RepoRoot "lecture2_0420_release\test1\Debug"
-$HexdumpDir = Join-Path $RepoRoot "lecture2_0420_release\hexdump-2.1.0"
+$DebugDir = Join-Path $RepoRoot "fpga\test1\Debug"
+$HexdumpDir = Join-Path $RepoRoot "fpga\hexdump"
 
 $SrcBin = Join-Path $DebugDir "test1.bin"
 $DstBin = Join-Path $HexdumpDir "test1.bin"

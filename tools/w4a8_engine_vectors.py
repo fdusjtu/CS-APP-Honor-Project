@@ -600,7 +600,7 @@ def main() -> int:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("lecture2_0420_release/test_vectors/w4a8_engine"),
+        default=Path("fpga/test_vectors/w4a8_engine"),
     )
     parser.add_argument("--checkpoint", type=Path, default=None,
                         help="use real per-row INT4 weights from this checkpoint")
