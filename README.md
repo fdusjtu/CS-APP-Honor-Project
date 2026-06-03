@@ -68,7 +68,7 @@ w4a8_block_engine  @ 0x1000_8000
 
 ```
 fpga/
-├── vivado/                     Vivado 工程（trans.xpr + RTL 源码）
+├── csapp/                      Vivado 工程（trans.xpr + RTL 源码）
 │   └── trans.srcs/
 │       ├── sources_1/new/      核心 RTL（w4a8_*.v/.vh，共 17 个文件）
 │       ├── sources_1/imports/  E203 RISC-V SoC 上游源码
@@ -128,7 +128,7 @@ pytest tests/ -q
 
 ### 4. Vivado 综合实现
 
-打开 `fpga/vivado/trans.xpr`，在 Tcl Console 执行：
+打开 `fpga/csapp/trans.xpr`，在 Tcl Console 执行：
 
 ```tcl
 reset_run synth_1
