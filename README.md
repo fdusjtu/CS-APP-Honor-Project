@@ -4,10 +4,10 @@
 
 本项目为复旦大学《计算机原理与体系结构》荣誉课程设计，在 **ALINX AXU3EG**（Zynq UltraScale+ MPSoC）上实现了基于 E203 RISC-V 软核 SoC 的 Transformer Block 硬件加速器。
 
-**板上验证结果（2026-06-03）：**
+**板上验证结果：**
 
 ```
-整块加速比（vs 真·全 CPU 基线）：engine x137.83 / call x129.23
+整块加速比（vs 全 CPU 基线）：engine x137.83 / call x129.23
 单层加速比（qkv 384×128）：        engine x314.6  / call x169.9
 ```
 
@@ -78,7 +78,7 @@ fpga/
 │       ├── main.c              顶层入口：baseline + block demo
 │       ├── w4a8.h              MMIO 寄存器映射 + 驱动
 │       ├── w4a8_block_fpga.c   FPGA block demo + 加速比测量
-│       ├── w4a8_block_cpu.c    真·全 CPU 基线（Method A 权重读回）
+│       ├── w4a8_block_cpu.c    全 CPU 基线（权重读回）
 │       ├── w4a8_ops.c          整数 LN / GELU / softmax / 重量化
 │       └── w4a8_cpu_ref.c      单层 CPU GEMV 参考
 ├── hexdump/
