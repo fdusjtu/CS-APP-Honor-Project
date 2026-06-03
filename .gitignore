@@ -11,6 +11,17 @@ desktop.ini
 /tmp/
 /temp/
 
+# Personal documents and AI config — keep locally, do not push
+/Report/
+/project_goal.md
+/课件/
+/lecture1/
+/lecture2_0420_release/fig/
+/.codex/
+/AGENTS.md
+/tmp/
+/temp/
+
 # Python caches and virtual environments
 __pycache__/
 *.py[cod]
